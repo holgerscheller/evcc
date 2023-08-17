@@ -2,7 +2,6 @@ product:
   brand: go-eCharger
   description: Gemini, HOME+, HOMEfix (V3)
 capabilities: ["1p3p", "rfid"]
-requirements: ["sponsorship"]
 description: |
   Benötigt mindestens Firmware 052.1 oder neuer.
 
