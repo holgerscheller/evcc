@@ -77,10 +77,6 @@ func NewGoE(uri, token string, cache time.Duration) (api.Charger, error) {
 		c.api = goe.NewLocal(log, util.DefaultScheme(uri, "http"), cache)
 	}
 
-	if !sponsor.IsAuthorized() {
-		return nil, api.ErrSponsorRequired
-	}
-
 	if c.api.IsV2() {
 		return decorateGoE(c, c.phases1p3p), nil
 	}
