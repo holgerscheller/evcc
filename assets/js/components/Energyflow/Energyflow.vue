@@ -23,20 +23,29 @@
 		<div class="details" :style="{ height: detailsHeight }">
 			<div ref="detailsInner" class="details-inner row">
 				<div class="col-12 d-flex justify-content-between pt-2 mb-4">
-					<div class="d-flex flex-nowrap align-items-center">
+					<div class="d-flex flex-nowrap align-items-center text-truncate">
 						<span class="color-self me-2"
 							><shopicon-filled-square></shopicon-filled-square
 						></span>
-						<span>{{ $t("main.energyflow.selfConsumption") }}</span>
+						<span class="text-nowrap text-truncate">
+							{{ $t("main.energyflow.selfConsumption") }}
+						</span>
 					</div>
-					<div v-if="gridImport > 0" class="d-flex flex-nowrap align-items-center">
-						<span>{{ $t("main.energyflow.gridImport") }}</span>
+					<div
+						v-if="gridImport > 0"
+						class="d-flex flex-nowrap align-items-center text-truncate"
+					>
+						<span class="text-nowrap text-truncate">
+							{{ $t("main.energyflow.gridImport") }}
+						</span>
 						<span class="color-grid ms-2"
 							><shopicon-filled-square></shopicon-filled-square
 						></span>
 					</div>
-					<div v-else class="d-flex flex-nowrap align-items-center">
-						<span>{{ $t("main.energyflow.pvExport") }}</span>
+					<div v-else class="d-flex flex-nowrap align-items-center text-truncate">
+						<span class="text-nowrap text-truncate">
+							{{ $t("main.energyflow.pvExport") }}
+						</span>
 						<span class="color-export ms-2"
 							><shopicon-filled-square></shopicon-filled-square
 						></span>
@@ -68,7 +77,8 @@
 							:soc="batterySoc"
 							:details="batterySoc"
 							:detailsFmt="batteryFmt"
-							:detailsTooltip="batteryTooltip"
+							detailsClickable
+							@details-clicked="openBatterySettingsModal"
 						/>
 						<EnergyflowEntry
 							:name="$t('main.energyflow.gridImport')"
@@ -77,7 +87,9 @@
 							:powerInKw="powerInKw"
 							:details="detailsValue(tariffGrid, tariffCo2)"
 							:detailsFmt="detailsFmt"
+							:detailsClickable="smartCostAvailable"
 							:detailsTooltip="detailsTooltip(tariffGrid, tariffCo2)"
+							@details-clicked="openGridSettingsModal"
 						/>
 					</div>
 				</div>
@@ -131,7 +143,8 @@
 							:soc="batterySoc"
 							:details="batterySoc"
 							:detailsFmt="batteryFmt"
-							:detailsTooltip="batteryTooltip"
+							detailsClickable
+							@details-clicked="openBatterySettingsModal"
 						/>
 						<EnergyflowEntry
 							:name="$t('main.energyflow.pvExport')"
@@ -146,22 +159,34 @@
 				</div>
 			</div>
 		</div>
+		<GridSettingsModal v-bind="gridSettings" />
+		<BatterySettingsModal v-bind="batterySettings" />
 	</div>
 </template>
 
 <script>
 import "@h2d2/shopicons/es/filled/square";
+import Modal from "bootstrap/js/dist/modal";
 import Visualization from "./Visualization.vue";
 import EnergyflowEntry from "./EnergyflowEntry.vue";
+import GridSettingsModal from "../GridSettingsModal.vue";
 import formatter from "../../mixins/formatter";
 import AnimatedNumber from "../AnimatedNumber.vue";
 import settings from "../../settings";
-import { showGridPrice, showGridCo2 } from "../../gridDetails";
+import { CO2_TYPE, PRICE_DYNAMIC_TYPE } from "../../units";
+import collector from "../../mixins/collector";
+import BatterySettingsModal from "../BatterySettingsModal.vue";
 
 export default {
 	name: "Energyflow",
-	components: { Visualization, EnergyflowEntry, AnimatedNumber },
-	mixins: [formatter],
+	components: {
+		Visualization,
+		EnergyflowEntry,
+		AnimatedNumber,
+		GridSettingsModal,
+		BatterySettingsModal,
+	},
+	mixins: [formatter, collector],
 	props: {
 		gridConfigured: Boolean,
 		gridPower: { type: Number, default: 0 },
@@ -171,7 +196,7 @@ export default {
 		pvPower: { type: Number, default: 0 },
 		loadpointsPower: { type: Number, default: 0 },
 		activeLoadpointsCount: { type: Number, default: 0 },
-		batteryConfigured: Boolean,
+		batteryConfigured: { type: Boolean },
 		battery: { type: Array },
 		batteryPower: { type: Number, default: 0 },
 		batterySoc: { type: Number, default: 0 },
@@ -181,12 +206,20 @@ export default {
 		tariffEffectivePrice: { type: Number },
 		tariffCo2: { type: Number },
 		tariffEffectiveCo2: { type: Number },
+		smartCostLimit: { type: Number },
+		smartCostType: { type: String },
 		currency: { type: String },
+		prioritySoc: { type: Number },
+		bufferSoc: { type: Number },
+		bufferStartSoc: { type: Number },
 	},
 	data: () => {
-		return { detailsOpen: false, detailsCompleteHeight: null };
+		return { detailsOpen: false, detailsCompleteHeight: null, gridSettingsModal: null };
 	},
 	computed: {
+		smartCostAvailable: function () {
+			return [CO2_TYPE, PRICE_DYNAMIC_TYPE].includes(this.smartCostType);
+		},
 		gridImport: function () {
 			return Math.max(0, this.gridPower);
 		},
@@ -208,7 +241,7 @@ export default {
 			return Math.max(0, this.gridPower * -1);
 		},
 		powerInKw: function () {
-			return this.gridImport + this.selfConsumption + this.pvExport > 1000;
+			return Math.max(this.gridImport, this.selfConsumption, this.pvExport) >= 1000;
 		},
 		inPower: function () {
 			return this.gridImport + this.pvProduction + this.batteryDischarge;
@@ -225,26 +258,26 @@ export default {
 			}
 			return this.pv.map(({ power }) => this.fmtKw(power, this.powerInKw));
 		},
-		batteryTooltip() {
-			if (!Array.isArray(this.battery)) {
-				return;
-			}
-			return this.battery.map(({ soc, capacity }) => {
-				const energy = this.fmtKWh((capacity / 100) * soc * 1e3, true, false, 1);
-				const total = this.fmtKWh(capacity * 1e3, true, true, 1);
-				const formattedSoc = this.batteryFmt(soc);
-				return this.$t("main.energyflow.batteryTooltip", {
-					energy,
-					total,
-					soc: formattedSoc,
-				});
-			});
-		},
 		batteryFmt() {
 			return (soc) => `${Math.round(soc)}%`;
 		},
+		gridSettings() {
+			return this.collectProps(GridSettingsModal);
+		},
+		batterySettings() {
+			return this.collectProps(BatterySettingsModal);
+		},
+		co2Available() {
+			return this.smartCostType === CO2_TYPE;
+		},
 	},
 	mounted() {
+		this.gridSettingsModal = Modal.getOrCreateInstance(
+			document.querySelector("#gridSettingsModal")
+		);
+		this.batterySettingsModal = Modal.getOrCreateInstance(
+			document.querySelector("#batterySettingsModal")
+		);
 		window.addEventListener("resize", this.updateHeight);
 		// height must be calculated in case of initially open details
 		if (settings.energyflowDetails) {
@@ -266,18 +299,16 @@ export default {
 			return result;
 		},
 		detailsValue(price, co2) {
-			if (showGridPrice() && !isNaN(price)) {
-				return price;
-			}
-			if (showGridCo2() && !isNaN(co2)) {
+			if (this.co2Available) {
 				return co2;
 			}
+			return price;
 		},
 		detailsFmt(value) {
-			if (showGridPrice()) {
-				return this.fmtPricePerKWh(value, this.currency, true);
+			if (this.co2Available) {
+				return this.fmtCo2Short(value);
 			}
-			return this.fmtCo2Short(value);
+			return this.fmtPricePerKWh(value, this.currency, true);
 		},
 		kw: function (watt) {
 			return this.fmtKw(watt, this.powerInKw);
@@ -289,6 +320,12 @@ export default {
 		},
 		updateHeight: function () {
 			this.detailsCompleteHeight = this.$refs.detailsInner.offsetHeight;
+		},
+		openGridSettingsModal() {
+			this.gridSettingsModal.show();
+		},
+		openBatterySettingsModal() {
+			this.batterySettingsModal.show();
 		},
 	},
 };

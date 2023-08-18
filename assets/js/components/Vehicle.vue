@@ -18,9 +18,9 @@
 			<LabelAndValue
 				v-if="socBasedCharging"
 				class="flex-grow-1"
-				:label="$t('main.vehicle.vehicleSoc')"
-				:value="vehicleSoc ? `${Math.round(vehicleSoc)}%` : '--'"
-				:extraValue="range ? `${Math.round(range)} ${rangeUnit}` : null"
+				:label="vehicleSocTitle"
+				:value="formattedSoc"
+				:extraValue="range ? `${fmtNumber(range, 0)} ${rangeUnit}` : null"
 				align="start"
 			/>
 			<LabelAndValue
@@ -31,18 +31,21 @@
 				:extraValue="chargedSoc"
 				align="start"
 			/>
-			<TargetCharge
-				class="flex-grow-1 text-center target-charge"
-				v-bind="targetCharge"
-				:disabled="targetChargeDisabled"
+			<ChargingPlan
+				v-if="!heating"
+				class="flex-grow-1 target-charge"
+				v-bind="chargingPlan"
+				:disabled="chargingPlanDisabled"
 				@target-time-updated="setTargetTime"
 				@target-time-removed="removeTargetTime"
+				@minsoc-updated="setMinSoc"
 			/>
 			<TargetSocSelect
 				v-if="socBasedCharging"
 				class="flex-grow-1 text-end"
 				:target-soc="displayTargetSoc"
 				:range-per-soc="rangePerSoc"
+				:heating="heating"
 				@target-soc-updated="targetSocUpdated"
 			/>
 			<TargetEnergySelect
@@ -65,7 +68,7 @@ import LabelAndValue from "./LabelAndValue.vue";
 import VehicleTitle from "./VehicleTitle.vue";
 import VehicleSoc from "./VehicleSoc.vue";
 import VehicleStatus from "./VehicleStatus.vue";
-import TargetCharge from "./TargetCharge.vue";
+import ChargingPlan from "./ChargingPlan.vue";
 import TargetSocSelect from "./TargetSocSelect.vue";
 import TargetEnergySelect from "./TargetEnergySelect.vue";
 import { distanceUnit, distanceValue } from "../units";
@@ -77,7 +80,7 @@ export default {
 		VehicleSoc,
 		VehicleStatus,
 		LabelAndValue,
-		TargetCharge,
+		ChargingPlan,
 		TargetSocSelect,
 		TargetEnergySelect,
 	},
@@ -86,6 +89,7 @@ export default {
 		id: [String, Number],
 		connected: Boolean,
 		integratedDevice: Boolean,
+		heating: Boolean,
 		vehiclePresent: Boolean,
 		vehicleSoc: Number,
 		vehicleTargetSoc: Number,
@@ -112,6 +116,12 @@ export default {
 		guardAction: String,
 		guardRemainingInterpolated: Number,
 		vehicles: Array,
+		climaterActive: Boolean,
+		smartCostLimit: Number,
+		smartCostType: String,
+		tariffGrid: Number,
+		tariffCo2: Number,
+		currency: String,
 	},
 	emits: [
 		"target-time-removed",
@@ -120,6 +130,7 @@ export default {
 		"target-energy-updated",
 		"change-vehicle",
 		"remove-vehicle",
+		"minsoc-updated",
 	],
 	data() {
 		return {
@@ -136,8 +147,24 @@ export default {
 		vehicleTitleProps: function () {
 			return this.collectProps(VehicleTitle);
 		},
-		targetCharge: function () {
-			return this.collectProps(TargetCharge);
+		chargingPlan: function () {
+			return this.collectProps(ChargingPlan);
+		},
+		formattedSoc: function () {
+			if (!this.vehicleSoc) {
+				return "--";
+			}
+			if (this.heating) {
+				// todo: add celsius/fahrenheit option to ui
+				return this.fmtNumber(this.vehicleSoc, 1, "celsius");
+			}
+			return `${Math.round(this.vehicleSoc)}%`;
+		},
+		vehicleSocTitle: function () {
+			if (this.heating) {
+				return this.$t("main.vehicle.temp");
+			}
+			return this.$t("main.vehicle.vehicleSoc");
 		},
 		range: function () {
 			return distanceValue(this.vehicleRange);
@@ -161,7 +188,7 @@ export default {
 			const value = this.socPerKwh * (this.chargedEnergy / 1e3);
 			return value > 1 ? `+${Math.round(value)}%` : null;
 		},
-		targetChargeDisabled: function () {
+		chargingPlanDisabled: function () {
 			if (!this.connected) {
 				return true;
 			}
@@ -198,6 +225,9 @@ export default {
 		},
 		setTargetTime: function (targetTime) {
 			this.$emit("target-time-updated", targetTime);
+		},
+		setMinSoc: function (minSoc) {
+			this.$emit("minsoc-updated", minSoc);
 		},
 		removeTargetTime: function () {
 			this.$emit("target-time-removed");

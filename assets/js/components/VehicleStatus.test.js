@@ -57,6 +57,22 @@ describe("target charge", () => {
   });
 });
 
+describe("climating", () => {
+  test("show climating status", () => {
+    expectStatus(
+      { connected: true, enabled: true, climaterActive: true, charging: true },
+      "climating"
+    );
+    expectStatus(
+      { connected: true, enabled: true, climaterActive: true, charging: false },
+      "climating"
+    );
+  });
+  test("only show climating if enabled", () => {
+    expectStatus({ connected: true, enabled: false, climaterActive: true }, "connected");
+  });
+});
+
 describe("timer", () => {
   test("show pv enable timer if not enabled yet and timer exists", () => {
     expectStatus(
@@ -66,7 +82,7 @@ describe("timer", () => {
         pvRemainingInterpolated: 90,
       },
       "pvEnable",
-      { remaining: "1:30m" }
+      { remaining: "1:30\u202Fm" }
     );
   });
   test("don't show pv enable timer if value is zero", () => {
@@ -88,7 +104,7 @@ describe("timer", () => {
         pvRemainingInterpolated: 90,
       },
       "pvDisable",
-      { remaining: "1:30m" }
+      { remaining: "1:30\u202Fm" }
     );
   });
   test("show phase enable timer if it exists", () => {
@@ -100,7 +116,7 @@ describe("timer", () => {
         phaseRemainingInterpolated: 90,
       },
       "scale1p",
-      { remaining: "1:30m" }
+      { remaining: "1:30\u202Fm" }
     );
   });
   test("show phase disable timer if it exists", () => {
@@ -112,29 +128,44 @@ describe("timer", () => {
         phaseRemainingInterpolated: 90,
       },
       "scale3p",
-      { remaining: "1:30m" }
+      { remaining: "1:30\u202Fm" }
     );
   });
   test("show guard timer if it exists", () => {
     expectStatus(
       {
-        guardAction: "enable",
         connected: true,
+        guardAction: "enable",
         guardRemainingInterpolated: 90,
       },
       "guard",
-      { remaining: "1:30m" }
+      { remaining: "1:30\u202Fm" }
     );
   });
-  test("don't show guard timer if charging", () => {
+  test("don't show guard timer if another timer exists", () => {
     expectStatus(
       {
-        guardAction: "enable",
         connected: true,
         charging: true,
+        pvAction: "disable",
+        pvRemainingInterpolated: 30,
+        guardAction: "enable",
         guardRemainingInterpolated: 90,
       },
-      "charging"
+      "pvDisable",
+      { remaining: "30\u202Fs" }
+    );
+  });
+  test("show guard timer if charging and no other timer exists", () => {
+    expectStatus(
+      {
+        connected: true,
+        charging: true,
+        guardAction: "enable",
+        guardRemainingInterpolated: 90,
+      },
+      "guard",
+      { remaining: "1:30\u202Fm" }
     );
   });
 });
@@ -162,6 +193,35 @@ describe("vehicle target soc", () => {
       },
       "vehicleTargetReached",
       { soc: 70 }
+    );
+  });
+});
+
+describe("smart grid charging", () => {
+  test("show clean energy message", () => {
+    expectStatus(
+      {
+        connected: true,
+        enabled: true,
+        charging: true,
+        tariffCo2: 400,
+        smartCostLimit: 500,
+        smartCostType: "co2",
+      },
+      "cleanEnergyCharging"
+    );
+  });
+  test("show cheap energy message", () => {
+    expectStatus(
+      {
+        connected: true,
+        enabled: true,
+        charging: true,
+        tariffGrid: 0.28,
+        smartCostLimit: 0.29,
+        currency: "EUR",
+      },
+      "cheapEnergyCharging"
     );
   });
 });

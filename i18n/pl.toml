@@ -1,3 +1,23 @@
+[batterySettings]
+batteryLevel = "Poziom baterii"
+capacity = "{energy} z {total}"
+legendBottomName = "priorytet domu"
+legendBottomSubline = "nie używany do ładowania"
+legendMiddleName = "pojazd najpierw"
+legendMiddleSubline = "priorytet nie domu"
+legendTitle = "Jak należy wykorzystać energię słoneczną?"
+legendTopAutostart = "uruchamia się automatycznie"
+legendTopName = "ładowanie wspomagane bateryjnie"
+legendTopSubline = "bez przerw"
+modalTitle = "Ustawienia baterii"
+note = "Uwaga: te ustawienia mają wpływ tylko na tryb solarny. Sposób ładowania jest odpowiednio dostosowywany."
+
+[batterySettings.bufferStart]
+full = "kiedy prawie pełny"
+low = "kiedy nieco pełny"
+medium = "kiedy w połowie pełny"
+never = "tylko z wystarczającą nadwyżką"
+
 [footer]
 
 [footer.community]
@@ -18,10 +38,10 @@ footerShort = "{percent}% słońce"
 modalTitle = "Przegląd energii ładowania"
 percentGrid = "{grid} kWh sieć"
 percentSelf = "{self} kWh słońce"
-percentTitle = "Energia słoneczna"
+percentTitle = "Energia Słoneczna"
 priceFeedIn = "{feedInPrice} eksport"
 priceGrid = "{gridPrice} sieć"
-priceTitle = "Cena energii"
+priceTitle = "Cena Energii"
 savingsComparedToGrid = "w porównaniu z siecią"
 savingsTitle = "Oszczędności"
 savingsTotalEnergy = "{total} kWh naładowanych"
@@ -56,12 +76,24 @@ modalUpdateNow = "Instaluj teraz"
 modalUpdateStarted = "Nowa wersja evcc uruchomi się..."
 modalUpdateStatusStart = "Instalacja rozpoczęta:"
 
+[gridSettings]
+activeHours = "{charging} z {total}"
+activeHoursLabel = "Aktywne godziny"
+co2Label = "Emisja CO₂"
+co2Limit = "Limit CO₂"
+costLimitDescription = "Umożliwia tymczasowe szybkie ładowanie w trybie solarnym."
+modalTitle = "Ładowanie z inteligentnej sieci"
+none = "nie ma"
+priceLabel = "Cena energii"
+priceLimit = "Limit ceny"
+
 [header]
 about = "O evcc"
 blog = "Blog"
 docs = "Dokumentacja"
 github = "GitHub"
 login = "Dane logowania pojazdu"
+needHelp = "Potrzebuję pomocy?"
 sessions = "Sesje ładowania"
 settings = "Ustawienia"
 
@@ -70,8 +102,36 @@ auto = "Wygląd: system"
 dark = "Wygląd: ciemny"
 light = "Wygląd: światły"
 
+[help]
+discussionsButton = "Dyskusje na GitHub'ie"
+documentationButton = "Dokumentacja"
+issueButton = "Zgłoś błąd"
+issueDescription = "Znalazłeś dziwne lub niewłaściwe zachowanie?"
+modalTitle = "Potrzebuję pomocy?"
+primaryActions = "Coś nie działa tak, jak powinno? To dobre miejsca, aby uzyskać pomoc."
+restartButton = "Uruchom ponownie"
+restartDescription = "Próbowałeś go wyłączyć i włączyć ponownie?"
+secondaryActions = "Nadal nie możesz rozwiązać swojego problemu? Oto kilka bardziej wymagających opcji."
+
+[help.restart]
+cancel = "Anulować"
+confirm = "Tak, uruchom ponownie!"
+description = "Normalne ponowne uruchamianie nie powinno być konieczne. Rozważ zgłoszenie błędu, jeśli chcesz regularnie restartować evcc."
+disclaimer = "Uwaga: evcc zakończy działanie i będzie polegać na systemie operacyjnym w celu ponownego uruchomienia evcc."
+modalTitle = "Czy na pewno chcesz uruchomić ponownie?"
+
 [main]
 vehicles = "Garaż"
+
+[main.chargingPlan]
+activeLabel = "{time}"
+arrivalTab = "Przyjazd"
+departureTab = "Wyjazd"
+modalTitle = "Plan ładowania"
+none = "nic"
+title = "Plan"
+titleMinSoc = "Minimalne ładowanie"
+titleTargetCharge = "Wyjazd"
 
 [main.energyflow]
 battery = "Bateria"
@@ -87,13 +147,17 @@ pvProduction = "Produkcja"
 selfConsumption = "Konsumpcja własna"
 
 [main.loadpoint]
+avgPrice = "⌀ Cena"
 charged = "Naładowano"
+co2 = "⌀ CO₂"
 duration = "Czas trwania"
 fallbackName = "Ładowarka"
 power = "Moc"
+price = "Σ Cena"
 remaining = "Pozostało"
 remoteDisabledHard = "{source}: wyłączone"
 remoteDisabledSoft = "{source}: adaptacyjne ładowanie słonecznie wyłączone"
+solar = "Słoneczna"
 
 [main.loadpointSettings]
 currents = "Prąd ładowania"
@@ -110,7 +174,7 @@ label = "Maks. prąd"
 label = "Min. Prąd"
 
 [main.loadpointSettings.minSoc]
-description = "Zasięg w sytuacjach awaryjnych. Pojazd jest „szybko” ładowany do {0}% w trybie „Słońce”. Następnie kontynuuje tylko z nadwyżką fotowoltaiczną."
+description = "Pojazd jest „szybko” ładowany do {0}% w trybie „Słońce”. Następnie kontynuuje tylko z nadwyżką fotowoltaiczną. Przydatne, aby zapewnić minimalny zasięg nawet w ciemniejsze dni."
 label = "Minimalne naładowanie %"
 
 [main.loadpointSettings.phasesConfigured]
@@ -134,16 +198,21 @@ logout = "wyloguj"
 [main.targetCharge]
 activate = "Aktywować"
 activeLabel = "{time}"
+co2Limit = "Limit CO₂ z {co2}"
+costLimitIgnore = "Skonfigurowany {limit} będzie ignorowany w tym okresie."
 descriptionEnergy = "Do kiedy należy załadować {targetEnergy} do pojazdu?"
 descriptionSoc = "Kiedy pojazd powinien zostać naladowany do {targetSoc}%?"
 inactiveLabel = "Czas docelowy"
 modalTitle = "Ustaw docelowy czas"
+onlyInPvMode = "Plan ładowania działa tylko w trybie solarnym."
 planDuration = "Czas ładowania"
 planPeriodLabel = "Okres"
 planPeriodValue = "{start} do {end}"
 planUnknown = "jeszcze nie wiadomo"
+priceLimit = "limit ceny {cena}"
 remove = "Usuń"
 setTargetTime = "brak"
+targetEnergyRequired = "Musisz także ustawić limit energii."
 targetIsInThePast = "Wybierz czas w przyszłości."
 targetIsTooFarInTheFuture = "Dostosujemy plan, gdy tylko dowiemy się więcej o przyszłości."
 title = "Czas Docelowy"
@@ -153,7 +222,7 @@ update = "Aktualizować"
 
 [main.targetChargePlan]
 chargeDuration = "Czas ładowania"
-co2Label = "CO₂ emisja Ø"
+co2Label = "CO₂ emisja ⌀"
 priceLabel = "Cena energii"
 timeRange = "{day} {range} h"
 unknownPrice = "nadal nieznany"
@@ -170,6 +239,8 @@ fallbackName = "Pojazd"
 moreActions = "Więcej akcji"
 none = "Brak pojazdu"
 targetSoc = "Ograniczenie"
+temp = "Temp."
+tempLimit = " Ograniczenie temp."
 unknown = "Pojazd gościa"
 vehicleSoc = "Bateria"
 
@@ -182,8 +253,12 @@ vehicleTarget = "Limit pojazdu: {soc}%"
 
 [main.vehicleStatus]
 charging = "Ładuje się..."
+cheapEnergyCharging = "Dostępna tania energia. Ładowanie…"
+cleanEnergyCharging = "Dostępna czysta energia. Ładowanie…"
+climating = "Wykryto wstępne przygotowanie"
 connected = "Połączony."
 disconnected = "Rozłączony."
+guard = "Ochrona przełączania aktywna {remaining}…"
 minCharge = "Minimalne ładowanie do {soc}%."
 pvDisable = "Za mało nadwyżki. Pauza po {remaining}..."
 pvEnable = "Dostępna nadwyżka. Począwszy po {remaining}..."
@@ -206,21 +281,35 @@ reload = "Przeładować?"
 
 [session]
 cancel = "Anuluj"
+co2 = "CO₂"
+date = "Okres"
 delete = "Usunąć"
 finished = "Zakończony"
-meterstart = "Licznik początek (kWh)"
-meterstop = "Licznik koniec (kWh)"
-odometer = "Przebieg (km)"
+meter = "Licznik"
+meterstart = "Licznik początek"
+meterstop = "Licznik koniec"
+odometer = "Przebieg"
+price = "Cena"
 started = "Zaczęło się"
 title = "Sesja ładowania"
 
 [sessions]
-date = "Okres"
+avgPower = "⌀ Moc"
+avgPrice = "⌀ Cena"
+chargeDuration = "Czas trwania"
+co2 = "⌀ CO₂"
+csvMonth = "Pobierz plik {month} CSV"
+csvTotal = "Pobierz plik CSV"
+date = "Rozpoczęty"
 downloadCsv = "Pobierz jako CSV"
 energy = "Naładowano"
 loadpoint = "Ładowarka"
+noData = "Brak sesji ładowania w tym miesiącu."
+price = "Σ Cena"
 reallyDelete = "Czy na pewno chcesz usunąć tę sesję?"
+solar = "Słoneczna"
 title = "Sesje ładowania"
+total = "Totalny"
 vehicle = "Pojazd"
 
 [sessions.csv]
@@ -233,6 +322,11 @@ meterstart = "Licznik początek (kWh)"
 meterstop = "Licznik koniec (kWh)"
 odometer = "Przebieg (km)"
 vehicle = "Pojazd"
+
+[sessions.filter]
+allLoadpoints = "wszystkie punkty ładowania"
+allVehicles = "wszystkie pojazdy"
+filter = "Filtrować"
 
 [settings]
 title = "Ustawienia"

@@ -2087,8 +2087,11 @@ type GetStatusResponse struct {
 		// WiFi RSSI signal strength
 		Srssi *int `json:"srssi,omitempty"`
 
-		// The EVSE status
+		// The EVSE state
 		State *int `json:"state,omitempty"`
+
+		// The EVSE status
+		Status *string `json:"status,omitempty"`
 
 		// Number of stuck relay errors
 		Stuckcount *int `json:"stuckcount,omitempty"`
@@ -2106,7 +2109,7 @@ type GetStatusResponse struct {
 		Voltage *float32 `json:"voltage,omitempty"`
 
 		// The total amount of energy transfered, in W/hour
-		Watthour *int `json:"watthour,omitempty"`
+		Watthour *float32 `json:"watthour,omitempty"`
 
 		// The amount of energy transfered in this charge session, in W/sec
 		Wattsec *float32 `json:"wattsec,omitempty"`
@@ -2285,7 +2288,7 @@ type StatusUpdatesResponse struct {
 		Voltage *float32 `json:"voltage,omitempty"`
 
 		// The total amount of energy transfered, in W/hour
-		Watthour *int `json:"watthour,omitempty"`
+		Watthour *float32 `json:"watthour,omitempty"`
 
 		// The amount of energy transfered in this charge session, in W/sec
 		Wattsec *float32 `json:"wattsec,omitempty"`
@@ -3265,8 +3268,11 @@ func ParseGetStatusResponse(rsp *http.Response) (*GetStatusResponse, error) {
 			// WiFi RSSI signal strength
 			Srssi *int `json:"srssi,omitempty"`
 
-			// The EVSE status
+			// The EVSE state
 			State *int `json:"state,omitempty"`
+
+			// The EVSE status
+			Status *string `json:"status,omitempty"`
 
 			// Number of stuck relay errors
 			Stuckcount *int `json:"stuckcount,omitempty"`
@@ -3284,7 +3290,7 @@ func ParseGetStatusResponse(rsp *http.Response) (*GetStatusResponse, error) {
 			Voltage *float32 `json:"voltage,omitempty"`
 
 			// The total amount of energy transfered, in W/hour
-			Watthour *int `json:"watthour,omitempty"`
+			Watthour *float32 `json:"watthour,omitempty"`
 
 			// The amount of energy transfered in this charge session, in W/sec
 			Wattsec *float32 `json:"wattsec,omitempty"`
@@ -3471,7 +3477,7 @@ func ParseStatusUpdatesResponse(rsp *http.Response) (*StatusUpdatesResponse, err
 			Voltage *float32 `json:"voltage,omitempty"`
 
 			// The total amount of energy transfered, in W/hour
-			Watthour *int `json:"watthour,omitempty"`
+			Watthour *float32 `json:"watthour,omitempty"`
 
 			// The amount of energy transfered in this charge session, in W/sec
 			Wattsec *float32 `json:"wattsec,omitempty"`

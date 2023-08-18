@@ -2,15 +2,17 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/evcc-io/evcc/api"
-	"github.com/evcc-io/evcc/core/db"
+	"github.com/evcc-io/evcc/core/session"
 	"github.com/evcc-io/evcc/core/soc"
 	"github.com/evcc-io/evcc/provider"
-	"golang.org/x/exp/slices"
+	"github.com/evcc-io/evcc/server/db/settings"
 )
 
 const (
@@ -99,10 +101,9 @@ func (lp *Loadpoint) selectVehicleByID(id string) api.Vehicle {
 // setActiveVehicle assigns currently active vehicle, configures soc estimator
 // and adds an odometer task
 func (lp *Loadpoint) setActiveVehicle(vehicle api.Vehicle) {
-	lp.Lock()
-
+	lp.vehicleMux.Lock()
 	if lp.vehicle == vehicle {
-		lp.Unlock()
+		lp.vehicleMux.Unlock()
 		return
 	}
 
@@ -116,9 +117,14 @@ func (lp *Loadpoint) setActiveVehicle(vehicle api.Vehicle) {
 		lp.coordinator.Acquire(vehicle)
 		to = vehicle.Title()
 	}
-	lp.log.INFO.Printf("vehicle updated: %s -> %s", from, to)
 
 	lp.vehicle = vehicle
+	lp.vehicleMux.Unlock()
+
+	lp.log.INFO.Printf("vehicle updated: %s -> %s", from, to)
+
+	// lock api
+	lp.Lock()
 
 	// reset minSoc and targetSoc before change
 	lp.setMinSoc(0)
@@ -127,7 +133,7 @@ func (lp *Loadpoint) setActiveVehicle(vehicle api.Vehicle) {
 	// reset target energy
 	lp.setTargetEnergy(0)
 
-	// unblock api
+	// unlock api
 	lp.Unlock()
 
 	if vehicle != nil {
@@ -141,9 +147,10 @@ func (lp *Loadpoint) setActiveVehicle(vehicle api.Vehicle) {
 		lp.socEstimator = soc.NewEstimator(lp.log, lp.charger, vehicle, estimate)
 
 		lp.publish(vehiclePresent, true)
-		lp.publish(vehicleTitle, lp.vehicle.Title())
-		lp.publish(vehicleIcon, lp.vehicle.Icon())
-		lp.publish(vehicleCapacity, lp.vehicle.Capacity())
+		lp.publish(vehicleTitle, vehicle.Title())
+		lp.publish(vehicleIcon, vehicle.Icon())
+		lp.publish(vehicleCapacity, vehicle.Capacity())
+		lp.restoreVehicleSettings()
 
 		lp.applyAction(vehicle.OnIdentified())
 		lp.addTask(lp.vehicleOdometer)
@@ -163,10 +170,10 @@ func (lp *Loadpoint) setActiveVehicle(vehicle api.Vehicle) {
 	lp.publish(phasesActive, lp.activePhases())
 	lp.unpublishVehicle()
 
-	lp.updateSession(func(session *db.Session) {
+	lp.updateSession(func(session *session.Session) {
 		var title string
-		if lp.vehicle != nil {
-			title = lp.vehicle.Title()
+		if vehicle != nil {
+			title = vehicle.Title()
 		}
 
 		lp.session.Vehicle = title
@@ -176,14 +183,15 @@ func (lp *Loadpoint) setActiveVehicle(vehicle api.Vehicle) {
 func (lp *Loadpoint) wakeUpVehicle() {
 	// charger
 	if c, ok := lp.charger.(api.Resurrector); ok {
+		lp.log.DEBUG.Println("wake-up charger")
 		if err := c.WakeUp(); err != nil {
 			lp.log.ERROR.Printf("wake-up charger: %v", err)
 		}
-		return
 	}
 
 	// vehicle
-	if vs, ok := lp.vehicle.(api.Resurrector); ok {
+	if vs, ok := lp.GetVehicle().(api.Resurrector); ok {
+		lp.log.DEBUG.Println("wake-up vehicle")
 		if err := vs.WakeUp(); err != nil {
 			lp.log.ERROR.Printf("wake-up vehicle: %v", err)
 		}
@@ -206,7 +214,7 @@ func (lp *Loadpoint) unpublishVehicle() {
 
 // vehicleHasFeature checks availability of vehicle feature
 func (lp *Loadpoint) vehicleHasFeature(f api.Feature) bool {
-	v, ok := lp.vehicle.(api.FeatureDescriber)
+	v, ok := lp.GetVehicle().(api.FeatureDescriber)
 	if ok {
 		ok = slices.Contains(v.Features(), f)
 	}
@@ -216,6 +224,40 @@ func (lp *Loadpoint) vehicleHasFeature(f api.Feature) bool {
 // publishVehicleFeature availability of vehicle features
 func (lp *Loadpoint) publishVehicleFeature(f api.Feature) {
 	lp.publish("vehicleFeature"+f.String(), lp.vehicleHasFeature(f))
+}
+
+// persistVehicleSettings stores user configuration (via UI/API) for the current vehicle
+func (lp *Loadpoint) persistVehicleSettings() {
+	idx := lp.coordinator.GetVehicleIndex(lp.GetVehicle())
+	if idx == -1 {
+		return
+	}
+	settings.SetInt(fmt.Sprintf("vehicle.%d.targetSoc", idx), int64(lp.Soc.target))
+	settings.SetFloat(fmt.Sprintf("vehicle.%d.targetEnergy", idx), lp.targetEnergy)
+	settings.SetInt(fmt.Sprintf("vehicle.%d.minSoc", idx), int64(lp.Soc.min))
+	settings.SetTime(fmt.Sprintf("vehicle.%d.targetTime", idx), lp.targetTime)
+}
+
+// restoreVehicleSettings restores user configuration (via UI/API) for the current vehicle
+func (lp *Loadpoint) restoreVehicleSettings() {
+	idx := lp.coordinator.GetVehicleIndex(lp.GetVehicle())
+	if idx == -1 {
+		return
+	}
+	if v, err := settings.Int(fmt.Sprintf("vehicle.%d.targetSoc", idx)); err == nil {
+		lp.setTargetSoc(int(v))
+	}
+	if v, err := settings.Float(fmt.Sprintf("vehicle.%d.targetEnergy", idx)); err == nil {
+		lp.setTargetEnergy(v)
+	}
+	if v, err := settings.Int(fmt.Sprintf("vehicle.%d.minSoc", idx)); err == nil {
+		lp.setMinSoc(int(v))
+	}
+	if v, err := settings.Time(fmt.Sprintf("vehicle.%d.targetTime", idx)); err == nil {
+		if v.After(time.Now()) {
+			lp.setTargetTime(v)
+		}
+	}
 }
 
 // vehicleUnidentified returns true if there are associated vehicles and detection is running.
@@ -292,24 +334,85 @@ func (lp *Loadpoint) identifyVehicleByStatus() {
 	}
 
 	// remove previous vehicle if status was not confirmed
-	if _, ok := lp.vehicle.(api.ChargeState); ok {
+	if _, ok := lp.GetVehicle().(api.ChargeState); ok {
 		lp.setActiveVehicle(nil)
 	}
 }
 
 // vehicleOdometer updates odometer
 func (lp *Loadpoint) vehicleOdometer() {
-	if vs, ok := lp.vehicle.(api.VehicleOdometer); ok {
+	if vs, ok := lp.GetVehicle().(api.VehicleOdometer); ok {
 		if odo, err := vs.Odometer(); err == nil {
 			lp.log.DEBUG.Printf("vehicle odometer: %.0fkm", odo)
 			lp.publish(vehicleOdometer, odo)
 
 			// update session once odometer is read
-			lp.updateSession(func(session *db.Session) {
-				session.Odometer = odo
+			lp.updateSession(func(session *session.Session) {
+				session.Odometer = &odo
 			})
 		} else if !errors.Is(err, api.ErrNotAvailable) {
 			lp.log.ERROR.Printf("vehicle odometer: %v", err)
 		}
 	}
+}
+
+// vehicleClimatePollAllowed determines if polling depending on mode and connection status
+func (lp *Loadpoint) vehicleClimatePollAllowed() bool {
+	switch {
+	case lp.Soc.Poll.Mode == pollCharging && lp.charging():
+		return true
+	case (lp.Soc.Poll.Mode == pollConnected || lp.Soc.Poll.Mode == pollAlways) && lp.connected():
+		return true
+	default:
+		return false
+	}
+}
+
+// vehicleSocPollAllowed validates charging state against polling mode
+func (lp *Loadpoint) vehicleSocPollAllowed() bool {
+	// always update soc when charging
+	if lp.charging() {
+		return true
+	}
+
+	// update if connected and soc unknown
+	if lp.connected() && lp.socUpdated.IsZero() {
+		return true
+	}
+
+	remaining := lp.Soc.Poll.Interval - lp.clock.Since(lp.socUpdated)
+
+	honourUpdateInterval := lp.Soc.Poll.Mode == pollAlways ||
+		lp.connected() && lp.Soc.Poll.Mode == pollConnected
+
+	if honourUpdateInterval {
+		if remaining > 0 {
+			lp.log.DEBUG.Printf("next soc poll remaining time: %v", remaining.Truncate(time.Second))
+		} else {
+			return true
+		}
+	}
+
+	return false
+}
+
+// vehicleClimateActive checks if vehicle has active climate request
+func (lp *Loadpoint) vehicleClimateActive() bool {
+	if cl, ok := lp.GetVehicle().(api.VehicleClimater); ok && lp.vehicleClimatePollAllowed() {
+		active, err := cl.Climater()
+		if err == nil {
+			if active {
+				lp.log.DEBUG.Println("climater active")
+			}
+
+			lp.publish("climaterActive", active)
+			return active
+		}
+
+		if !errors.Is(err, api.ErrNotAvailable) {
+			lp.log.ERROR.Printf("climater: %v", err)
+		}
+	}
+
+	return false
 }

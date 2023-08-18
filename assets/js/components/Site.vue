@@ -17,8 +17,12 @@
 				class="mt-1 mt-sm-2 flex-grow-1"
 				:loadpoints="loadpoints"
 				:vehicles="vehicles"
+				:smartCostLimit="smartCostLimit"
+				:smartCostType="smartCostType"
+				:tariffGrid="tariffGrid"
+				:tariffCo2="tariffCo2"
+				:currency="currency"
 			/>
-			<VehcileSettingsModal />
 			<Footer v-bind="footer"></Footer>
 		</div>
 	</div>
@@ -28,7 +32,6 @@
 import "@h2d2/shopicons/es/regular/arrowup";
 import TopNavigation from "./TopNavigation.vue";
 import Notifications from "./Notifications.vue";
-import VehcileSettingsModal from "./VehicleSettingsModal.vue";
 import Energyflow from "./Energyflow/Energyflow.vue";
 import Loadpoints from "./Loadpoints.vue";
 import Footer from "./Footer.vue";
@@ -43,7 +46,6 @@ export default {
 		Footer,
 		Notifications,
 		TopNavigation,
-		VehcileSettingsModal,
 	},
 	mixins: [formatter, collector],
 	props: {
@@ -65,6 +67,8 @@ export default {
 		battery: Array,
 		gridCurrents: Array,
 		prioritySoc: Number,
+		bufferSoc: Number,
+		bufferStartSoc: Number,
 		siteTitle: String,
 		vehicles: Array,
 
@@ -92,6 +96,8 @@ export default {
 		uploadProgress: Number,
 		sponsor: String,
 		sponsorTokenExpires: Number,
+		smartCostLimit: Number,
+		smartCostType: String,
 	},
 	computed: {
 		energyflow: function () {
@@ -118,12 +124,6 @@ export default {
 		topNavigation: function () {
 			const vehicleLogins = this.auth ? this.auth.vehicles : {};
 			return { vehicleLogins, ...this.collectProps(TopNavigation) };
-		},
-		hasPrice: function () {
-			return !isNaN(this.tariffGrid);
-		},
-		hasCo2: function () {
-			return !isNaN(this.tariffCo2);
 		},
 		showParkingLot: function () {
 			// work in progess

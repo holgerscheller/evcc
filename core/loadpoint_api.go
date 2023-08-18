@@ -3,7 +3,6 @@ package core
 import (
 	"errors"
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/evcc-io/evcc/api"
@@ -16,11 +15,6 @@ var _ loadpoint.API = (*Loadpoint)(nil)
 // Title returns the human-readable loadpoint title
 func (lp *Loadpoint) Title() string {
 	return lp.Title_
-}
-
-// Priority returns the loadpoint priority
-func (lp *Loadpoint) Priority() int {
-	return lp.Priority_
 }
 
 // GetStatus returns the charging status
@@ -68,18 +62,11 @@ func (lp *Loadpoint) SetMode(mode api.ChargeMode) {
 	}
 }
 
-// getChargedEnergy returns loadpoint charge target energy
+// getChargedEnergy returns loadpoint charge target energy in Wh
 func (lp *Loadpoint) getChargedEnergy() float64 {
 	lp.Lock()
 	defer lp.Unlock()
-	return lp.chargedEnergy
-}
-
-// setChargedEnergy returns loadpoint charge target energy
-func (lp *Loadpoint) setChargedEnergy(energy float64) {
-	lp.Lock()
-	defer lp.Unlock()
-	lp.chargedEnergy = energy
+	return lp.sessionEnergy.TotalWh()
 }
 
 // GetTargetEnergy returns loadpoint charge target energy
@@ -106,6 +93,27 @@ func (lp *Loadpoint) SetTargetEnergy(energy float64) {
 	if lp.targetEnergy != energy {
 		lp.setTargetEnergy(energy)
 		lp.requestUpdate()
+		lp.persistVehicleSettings()
+	}
+}
+
+// GetPriority returns the loadpoint priority
+func (lp *Loadpoint) GetPriority() int {
+	lp.Lock()
+	defer lp.Unlock()
+	return lp.Priority_
+}
+
+// SetPriority sets the loadpoint priority
+func (lp *Loadpoint) SetPriority(prio int) {
+	lp.Lock()
+	defer lp.Unlock()
+
+	lp.log.DEBUG.Println("set priority:", prio)
+
+	if lp.Priority_ != prio {
+		lp.Priority_ = prio
+		lp.publish("priority", prio)
 	}
 }
 
@@ -133,6 +141,7 @@ func (lp *Loadpoint) SetTargetSoc(soc int) {
 	if lp.Soc.target != soc {
 		lp.setTargetSoc(soc)
 		lp.requestUpdate()
+		lp.persistVehicleSettings()
 	}
 }
 
@@ -160,6 +169,7 @@ func (lp *Loadpoint) SetMinSoc(soc int) {
 	if lp.Soc.min != soc {
 		lp.setMinSoc(soc)
 		lp.requestUpdate()
+		lp.persistVehicleSettings()
 	}
 }
 
@@ -211,6 +221,7 @@ func (lp *Loadpoint) SetTargetTime(finishAt time.Time) error {
 	lp.Lock()
 	defer lp.Unlock()
 	lp.setTargetTime(finishAt)
+	lp.persistVehicleSettings()
 
 	return nil
 }
@@ -304,7 +315,7 @@ func (lp *Loadpoint) GetChargePowerFlexibility() float64 {
 	}
 
 	// MinPV mode
-	return math.Max(0, lp.GetChargePower()-lp.GetMinPower())
+	return max(0, lp.GetChargePower()-lp.GetMinPower())
 }
 
 // GetMinCurrent returns the min loadpoint current
@@ -403,21 +414,18 @@ func (lp *Loadpoint) GetRemainingEnergy() float64 {
 
 // GetVehicle gets the active vehicle
 func (lp *Loadpoint) GetVehicle() api.Vehicle {
-	lp.Lock()
-	defer lp.Unlock()
+	lp.vehicleMux.Lock()
+	defer lp.vehicleMux.Unlock()
 	return lp.vehicle
 }
 
 // SetVehicle sets the active vehicle
 func (lp *Loadpoint) SetVehicle(vehicle api.Vehicle) {
-	// TODO develop universal locking approach
-	// setActiveVehicle is protected by lock, hence no locking here
-
-	// set desired vehicle
+	// set desired vehicle (protected by lock, no locking here)
 	lp.setActiveVehicle(vehicle)
 
-	lp.Lock()
-	defer lp.Unlock()
+	lp.vehicleMux.Lock()
+	defer lp.vehicleMux.Unlock()
 
 	// disable auto-detect
 	lp.stopVehicleDetection()

@@ -53,6 +53,56 @@
 									</td>
 								</tr>
 								<tr>
+									<th class="align-baseline">
+										{{ $t("session.date") }}
+									</th>
+									<td>
+										{{ fmtFullDateTime(new Date(session.created), false) }}
+										<br />
+										{{ fmtFullDateTime(new Date(session.finished), false) }}
+									</td>
+								</tr>
+								<tr>
+									<th class="align-baseline">
+										{{ $t("sessions.energy") }}
+									</th>
+									<td>
+										{{ fmtKWh(chargedEnergy, chargedEnergy >= 1e3) }}
+										<div v-if="session.chargeDuration">
+											{{ fmtDurationNs(session.chargeDuration) }}
+											(~{{ fmtKw(avgPower) }})
+										</div>
+									</td>
+								</tr>
+								<tr v-if="session.solarPercentage != null">
+									<th class="align-baseline">
+										{{ $t("sessions.solar") }}
+									</th>
+									<td>
+										{{ fmtNumber(session.solarPercentage, 1) }}% ({{
+											fmtKWh(solarEnergy, solarEnergy >= 1e3)
+										}})
+									</td>
+								</tr>
+								<tr v-if="session.price != null">
+									<th class="align-baseline">
+										{{ $t("session.price") }}
+									</th>
+									<td>
+										{{ fmtMoney(session.price, currency) }}
+										{{ fmtCurrencySymbol(currency) }}<br />
+										{{ fmtPricePerKWh(session.pricePerKWh, currency) }}
+									</td>
+								</tr>
+								<tr v-if="session.co2PerKWh != null">
+									<th>
+										{{ $t("session.co2") }}
+									</th>
+									<td>
+										{{ fmtCo2Medium(session.co2PerKWh) }}
+									</td>
+								</tr>
+								<tr v-if="session.odometer">
 									<th>
 										{{ $t("session.odometer") }}
 									</th>
@@ -60,44 +110,13 @@
 										{{ formatKm(session.odometer) }}
 									</td>
 								</tr>
-								<tr>
-									<th>
-										{{ $t("sessions.energy") }}
+								<tr v-if="session.meterStart">
+									<th class="align-baseline">
+										{{ $t("session.meter") }}
 									</th>
 									<td>
-										{{ fmtKWh(session.chargedEnergy * 1e3) }}
-									</td>
-								</tr>
-								<tr>
-									<th>
-										{{ $t("session.meterstart") }}
-									</th>
-									<td>
-										{{ fmtKWh(session.meterStart * 1e3) }}
-									</td>
-								</tr>
-								<tr>
-									<th>
-										{{ $t("session.meterstop") }}
-									</th>
-									<td>
+										{{ fmtKWh(session.meterStart * 1e3) }}<br />
 										{{ fmtKWh(session.meterStop * 1e3) }}
-									</td>
-								</tr>
-								<tr>
-									<th>
-										{{ $t("session.started") }}
-									</th>
-									<td>
-										{{ fmtFullDateTime(new Date(session.created), false) }}
-									</td>
-								</tr>
-								<tr>
-									<th>
-										{{ $t("session.finished") }}
-									</th>
-									<td>
-										{{ fmtFullDateTime(new Date(session.finished), false) }}
 									</td>
 								</tr>
 							</tbody>
@@ -169,9 +188,22 @@ export default {
 	mixins: [formatter],
 	props: {
 		session: Object,
+		currency: String,
 		vehicles: [Object],
 	},
 	emits: ["session-changed"],
+	computed: {
+		chargedEnergy: function () {
+			return this.session.chargedEnergy * 1e3;
+		},
+		avgPower: function () {
+			const hours = this.session.chargeDuration / 1e9 / 3600;
+			return this.chargedEnergy / hours;
+		},
+		solarEnergy: function () {
+			return this.chargedEnergy * (this.session.solarPercentage / 100);
+		},
+	},
 	methods: {
 		openSessionDetailsModal() {
 			const modal = Modal.getOrCreateInstance(document.getElementById("sessionDetailsModal"));
@@ -184,7 +216,7 @@ export default {
 			modal.show();
 		},
 		formatKm: function (value) {
-			return `${distanceValue(value)} ${distanceUnit()}`;
+			return `${this.fmtNumber(distanceValue(value), 0)} ${distanceUnit()}`;
 		},
 		async changeVehicle(index) {
 			await this.updateSession({

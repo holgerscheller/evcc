@@ -5,7 +5,8 @@ const SETTINGS_THEME = "settings_theme";
 const SETTINGS_UNIT = "settings_unit";
 const SETTINGS_HIDDEN_FEATURES = "settings_hidden_features";
 const SETTINGS_ENERGYFLOW_DETAILS = "settings_energyflow_details";
-const SETTINGS_GRID_DETAILS = "settings_grid_details";
+const SESSION_INFO = "session_info";
+const SESSION_COLUMNS = "session_columns";
 
 function read(key) {
   return window.localStorage[key];
@@ -35,21 +36,34 @@ function saveBool(key) {
   };
 }
 
+function readArray(key) {
+  const value = read(key);
+  return value ? value.split(",") : [];
+}
+
+function saveArray(key) {
+  return (value) => {
+    save(key)(value.join(","));
+  };
+}
+
 const settings = reactive({
   telemetry: null,
   locale: read(SETTINGS_LOCALE),
   theme: read(SETTINGS_THEME),
   unit: read(SETTINGS_UNIT),
-  gridDetails: read(SETTINGS_GRID_DETAILS),
   hiddenFeatures: readBool(SETTINGS_HIDDEN_FEATURES),
   energyflowDetails: readBool(SETTINGS_ENERGYFLOW_DETAILS),
+  sessionInfo: readArray(SESSION_INFO),
+  sessionColumns: readArray(SESSION_COLUMNS),
 });
 
 watch(() => settings.locale, save(SETTINGS_LOCALE));
 watch(() => settings.theme, save(SETTINGS_THEME));
 watch(() => settings.unit, save(SETTINGS_UNIT));
-watch(() => settings.gridDetails, save(SETTINGS_GRID_DETAILS));
 watch(() => settings.hiddenFeatures, saveBool(SETTINGS_HIDDEN_FEATURES));
 watch(() => settings.energyflowDetails, saveBool(SETTINGS_ENERGYFLOW_DETAILS));
+watch(() => settings.sessionInfo, saveArray(SESSION_INFO));
+watch(() => settings.sessionColumns, saveArray(SESSION_COLUMNS));
 
 export default settings;

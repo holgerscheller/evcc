@@ -1,9 +1,10 @@
 <template>
-	<div class="d-block evcc-gray">{{ message }}&nbsp;</div>
+	<div class="d-block evcc-gray" data-testid="vehicle-status">{{ message }}&nbsp;</div>
 </template>
 
 <script>
 import formatter from "../mixins/formatter";
+import { CO2_TYPE } from "../units";
 
 export default {
 	name: "VehicleStatus",
@@ -24,6 +25,11 @@ export default {
 		guardAction: String,
 		guardRemainingInterpolated: Number,
 		targetChargeDisabled: Boolean,
+		climaterActive: Boolean,
+		smartCostLimit: Number,
+		smartCostType: String,
+		tariffGrid: Number,
+		tariffCo2: Number,
 	},
 	computed: {
 		phaseTimerActive() {
@@ -39,6 +45,9 @@ export default {
 		},
 		guardTimerActive() {
 			return this.guardRemainingInterpolated > 0 && this.guardAction === "enable";
+		},
+		isCo2() {
+			return this.smartCostType === CO2_TYPE;
 		},
 		message: function () {
 			const t = (key, data) => {
@@ -68,10 +77,24 @@ export default {
 				}
 			}
 
+			// clean energy
+			if (this.charging && this.isCo2 && this.tariffCo2 < this.smartCostLimit) {
+				return t("cleanEnergyCharging");
+			}
+
+			// cheap energy
+			if (this.charging && !this.isCo2 && this.tariffGrid < this.smartCostLimit) {
+				return t("cheapEnergyCharging");
+			}
+
 			if (this.pvTimerActive && !this.enabled && this.pvAction === "enable") {
 				return t("pvEnable", {
-					remaining: this.fmtShortDuration(this.pvRemainingInterpolated, true),
+					remaining: this.fmtDuration(this.pvRemainingInterpolated),
 				});
+			}
+
+			if (this.enabled && this.climaterActive) {
+				return t("climating");
 			}
 
 			if (this.enabled && !this.charging) {
@@ -83,24 +106,24 @@ export default {
 
 			if (this.pvTimerActive && this.charging && this.pvAction === "disable") {
 				return t("pvDisable", {
-					remaining: this.fmtShortDuration(this.pvRemainingInterpolated, true),
+					remaining: this.fmtDuration(this.pvRemainingInterpolated),
 				});
 			}
 
 			if (this.phaseTimerActive) {
 				return t(this.phaseAction, {
-					remaining: this.fmtShortDuration(this.phaseRemainingInterpolated, true),
+					remaining: this.fmtDuration(this.phaseRemainingInterpolated),
+				});
+			}
+
+			if (this.guardTimerActive) {
+				return t("guard", {
+					remaining: this.fmtDuration(this.guardRemainingInterpolated),
 				});
 			}
 
 			if (this.charging) {
 				return t("charging");
-			}
-
-			if (this.guardTimerActive) {
-				return t("guard", {
-					remaining: this.fmtShortDuration(this.guardRemainingInterpolated, true),
-				});
 			}
 
 			return t("connected");

@@ -2,6 +2,7 @@ package configure
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -9,8 +10,7 @@ import (
 	"github.com/evcc-io/evcc/util"
 	"github.com/evcc-io/evcc/util/sponsor"
 	"github.com/evcc-io/evcc/util/templates"
-	stripmd "github.com/writeas/go-strip-markdown"
-	"golang.org/x/exp/slices"
+	stripmd "github.com/writeas/go-strip-markdown/v2"
 	"gopkg.in/yaml.v3"
 )
 
@@ -402,11 +402,6 @@ func (c *CmdConfigure) processParams(templateItem *templates.Template, deviceCat
 				continue
 			}
 
-			if param.IsHidden() && param.Default != "" {
-				additionalConfig[param.Name] = param.Default
-				continue
-			}
-
 			if usageFilter != "" && len(param.Usages) > 0 && !slices.Contains(param.Usages, string(usageFilter)) {
 				continue
 			}
@@ -475,7 +470,7 @@ func (c *CmdConfigure) processInputConfig(param templates.Param) string {
 		help:         help,
 		valueType:    param.Type,
 		validValues:  param.ValidValues,
-		mask:         param.IsMask(),
+		mask:         param.IsMasked(),
 		required:     param.IsRequired(),
 	})
 

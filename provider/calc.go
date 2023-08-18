@@ -3,7 +3,6 @@ package provider
 import (
 	"errors"
 	"fmt"
-	"math"
 
 	"github.com/evcc-io/evcc/util"
 )
@@ -18,7 +17,7 @@ func init() {
 }
 
 // NewCalcFromConfig creates calc provider
-func NewCalcFromConfig(other map[string]interface{}) (IntProvider, error) {
+func NewCalcFromConfig(other map[string]interface{}) (Provider, error) {
 	var cc struct {
 		Add  []Config
 		Mul  []Config
@@ -31,7 +30,7 @@ func NewCalcFromConfig(other map[string]interface{}) (IntProvider, error) {
 	}
 
 	o := &calcProvider{}
-	if i := int(math.Min(float64(len(cc.Add)), 1)) + int(math.Min(float64(len(cc.Mul)), 1)) + int(math.Min(float64(len(cc.Div)), 1)); i > 1 ||
+	if i := min(len(cc.Add), 1) + min(len(cc.Mul), 1) + min(len(cc.Div), 1); i > 1 ||
 		(len(cc.Add) > 0 && cc.Sign != nil) ||
 		(len(cc.Mul) > 0 && cc.Sign != nil) ||
 		(len(cc.Div) > 0 && cc.Sign != nil) {

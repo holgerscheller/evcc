@@ -11,6 +11,7 @@ import (
 	"github.com/evcc-io/evcc/api"
 	"github.com/evcc-io/evcc/util"
 	"github.com/lorenzodonini/ocpp-go/ocpp1.6/core"
+	"github.com/lorenzodonini/ocpp-go/ocpp1.6/remotetrigger"
 	"github.com/lorenzodonini/ocpp-go/ocpp1.6/types"
 )
 
@@ -93,6 +94,10 @@ func (cp *CP) RegisterID(id string) {
 	cp.id = id
 }
 
+func (cp *CP) Connector() int {
+	return cp.connector
+}
+
 func (cp *CP) connect(connect bool) {
 	cp.mu.Lock()
 	defer cp.mu.Unlock()
@@ -117,7 +122,9 @@ func (cp *CP) Initialized() error {
 		case <-cp.statusC:
 			return
 		default:
-			Instance().TriggerMessageRequest(cp.ID(), core.StatusNotificationFeatureName)
+			Instance().TriggerMessageRequest(cp.ID(), core.StatusNotificationFeatureName, func(request *remotetrigger.TriggerMessageRequest) {
+				request.ConnectorId = &cp.connector
+			})
 		}
 	})
 
@@ -187,9 +194,13 @@ func (cp *CP) WatchDog(timeout time.Duration) {
 		cp.mu.Unlock()
 
 		if update {
-			Instance().TriggerMessageRequest(cp.ID(), core.MeterValuesFeatureName)
+			Instance().TriggerMeterValuesRequest(cp.ID(), cp.Connector())
 		}
 	}
+}
+
+func (cp *CP) isTimeout() bool {
+	return cp.timeout > 0 && cp.clock.Since(cp.meterUpdated) > cp.timeout
 }
 
 var _ api.Meter = (*CP)(nil)
@@ -202,8 +213,13 @@ func (cp *CP) CurrentPower() (float64, error) {
 		return 0, api.ErrTimeout
 	}
 
-	if cp.txnId != 0 && cp.timeout > 0 && cp.clock.Since(cp.meterUpdated) > cp.timeout {
-		return 0, api.ErrNotAvailable
+	// zero value on timeout when not charging
+	if cp.isTimeout() {
+		if cp.txnId != 0 {
+			return 0, api.ErrTimeout
+		}
+
+		return 0, nil
 	}
 
 	if m, ok := cp.measurements[string(types.MeasurandPowerActiveImport)]; ok {
@@ -224,8 +240,9 @@ func (cp *CP) TotalEnergy() (float64, error) {
 		return 0, api.ErrTimeout
 	}
 
-	if cp.txnId != 0 && cp.timeout > 0 && cp.clock.Since(cp.meterUpdated) > cp.timeout {
-		return 0, api.ErrNotAvailable
+	// fallthrough for last value on timeout when not charging
+	if cp.txnId != 0 && cp.isTimeout() {
+		return 0, api.ErrTimeout
 	}
 
 	if m, ok := cp.measurements[string(types.MeasurandEnergyActiveImportRegister)]; ok {
@@ -261,8 +278,13 @@ func (cp *CP) Currents() (float64, float64, float64, error) {
 		return 0, 0, 0, api.ErrTimeout
 	}
 
-	if cp.txnId != 0 && cp.timeout > 0 && cp.clock.Since(cp.meterUpdated) > cp.timeout {
-		return 0, 0, 0, api.ErrNotAvailable
+	// zero value on timeout when not charging
+	if cp.isTimeout() {
+		if cp.txnId != 0 {
+			return 0, 0, 0, api.ErrTimeout
+		}
+
+		return 0, 0, 0, nil
 	}
 
 	currents := make([]float64, 0, 3)

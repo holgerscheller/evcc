@@ -32,19 +32,20 @@ func TestPublishSocAndRange(t *testing.T) {
 
 	log := util.NewLogger("foo")
 	lp := &Loadpoint{
-		log:            log,
-		bus:            evbus.New(),
-		clock:          clck,
-		charger:        charger,
-		defaultVehicle: vehicle,
-		chargeMeter:    &Null{}, // silence nil panics
-		chargeRater:    &Null{}, // silence nil panics
-		chargeTimer:    &Null{}, // silence nil panics
-		socEstimator:   soc.NewEstimator(log, charger, vehicle, false),
-		MinCurrent:     minA,
-		MaxCurrent:     maxA,
-		phases:         1,
-		Mode:           api.ModeNow,
+		log:           log,
+		bus:           evbus.New(),
+		clock:         clck,
+		charger:       charger,
+		vehicle:       vehicle,
+		chargeMeter:   &Null{}, // silence nil panics
+		chargeRater:   &Null{}, // silence nil panics
+		chargeTimer:   &Null{}, // silence nil panics
+		socEstimator:  soc.NewEstimator(log, charger, vehicle, false),
+		sessionEnergy: NewEnergyMetrics(),
+		MinCurrent:    minA,
+		MaxCurrent:    maxA,
+		phases:        1,
+		Mode:          api.ModeNow,
 	}
 
 	// populate channels
@@ -65,12 +66,12 @@ func TestPublishSocAndRange(t *testing.T) {
 		clck.Add(time.Hour)
 		lp.status = tc.status
 
-		assert.True(t, lp.socPollAllowed())
+		assert.True(t, lp.vehicleSocPollAllowed())
 		vehicle.EXPECT().Soc().Return(0.0, errors.New("foo"))
 		lp.publishSocAndRange()
 
 		clck.Add(time.Second)
-		assert.Equal(t, tc.allowed, lp.socPollAllowed())
+		assert.Equal(t, tc.allowed, lp.vehicleSocPollAllowed())
 		if tc.allowed {
 			vehicle.EXPECT().Soc().Return(0.0, errors.New("foo"))
 		}
@@ -210,8 +211,6 @@ func TestDefaultVehicle(t *testing.T) {
 	lp.ResetOnDisconnect = true
 	lp.evVehicleDisconnectHandler()
 	assert.Equal(t, mode, lp.GetMode(), "mode")
-	assert.Equal(t, minsoc, lp.GetMinSoc(), "minsoc")
-	assert.Equal(t, targetsoc, lp.GetTargetSoc(), "targetsoc")
 	assert.Equal(t, lp.onDisconnect, onDisconnect, "ondisconnect must remain untouched")
 
 	// set non-default vehicle during disconnect - should be default on connect
@@ -242,8 +241,6 @@ func TestApplyVehicleDefaults(t *testing.T) {
 		assert.Equal(t, *conf.Mode, lp.Mode)
 		assert.Equal(t, *conf.MinCurrent, lp.MinCurrent)
 		assert.Equal(t, *conf.MaxCurrent, lp.MaxCurrent)
-		assert.Equal(t, *conf.MinSoc, lp.Soc.min)
-		assert.Equal(t, *conf.TargetSoc, lp.Soc.target)
 	}
 
 	// onIdentified config
@@ -333,18 +330,19 @@ func TestReconnectVehicle(t *testing.T) {
 			charger.EXPECT().Status().Return(api.StatusB, nil).AnyTimes()
 
 			lp := &Loadpoint{
-				log:         util.NewLogger("foo"),
-				bus:         evbus.New(),
-				clock:       clck,
-				charger:     charger,
-				chargeMeter: &Null{}, // silence nil panics
-				chargeRater: &Null{}, // silence nil panics
-				chargeTimer: &Null{}, // silence nil panics
-				wakeUpTimer: NewTimer(),
-				MinCurrent:  minA,
-				MaxCurrent:  maxA,
-				phases:      1,
-				Mode:        api.ModeNow,
+				log:           util.NewLogger("foo"),
+				bus:           evbus.New(),
+				clock:         clck,
+				charger:       charger,
+				chargeMeter:   &Null{}, // silence nil panics
+				chargeRater:   &Null{}, // silence nil panics
+				chargeTimer:   &Null{}, // silence nil panics
+				wakeUpTimer:   NewTimer(),
+				sessionEnergy: NewEnergyMetrics(),
+				MinCurrent:    minA,
+				MaxCurrent:    maxA,
+				phases:        1,
+				Mode:          api.ModeNow,
 			}
 
 			lp.coordinator = coordinator.NewAdapter(lp, coordinator.New(util.NewLogger("foo"), []api.Vehicle{vehicle}))
@@ -359,7 +357,7 @@ func TestReconnectVehicle(t *testing.T) {
 			// vehicle not updated yet
 			vehicle.MockChargeState.EXPECT().Status().Return(api.StatusA, nil)
 
-			lp.Update(0, false, false)
+			lp.Update(0, false, false, false, 0, nil, nil)
 			ctrl.Finish()
 
 			// detection started
@@ -373,7 +371,7 @@ func TestReconnectVehicle(t *testing.T) {
 			// vehicle not updated yet
 			vehicle.MockChargeState.EXPECT().Status().Return(api.StatusB, nil)
 
-			lp.Update(0, false, false)
+			lp.Update(0, false, false, false, 0, nil, nil)
 			ctrl.Finish()
 
 			// vehicle detected

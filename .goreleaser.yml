@@ -6,11 +6,14 @@ release:
 
 builds:
   - id: evcc
-    main: main.go
+    main: .
     flags:
+      - -trimpath
       - -tags=release
     ldflags:
       - -X github.com/evcc-io/evcc/server.Version={{ .Version }} -s -w
+    env:
+      - CGO_ENABLED=0
     goos:
       - linux
       - darwin
@@ -40,7 +43,7 @@ archives:
     files:
       - evcc.dist.yaml
     name_template: >-
-      {{ .ProjectName }}_{{ .Version }}_{{ if eq .Os "darwin" }}macOS{{ else }}{{ .Os }}{{ end }}-{{ .Arch }}{{ if .Arm }}hf{{ end }}
+      {{ .ProjectName }}_{{ .Version }}_{{ if eq .Os "darwin" }}macOS{{ else }}{{ .Os }}{{ end }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
 
 universal_binaries:
   - replace: true
@@ -85,7 +88,7 @@ nfpms:
       postremove: ./packaging/scripts/postremove.sh
 
 brews:
-  - tap:
+  - repository:
       owner: evcc-io
       name: homebrew-tap
     commit_author:

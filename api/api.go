@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -32,13 +34,44 @@ type ChargeStatus string
 // Charging states
 const (
 	StatusNone ChargeStatus = ""
-	StatusA    ChargeStatus = "A" // Fzg. angeschlossen: nein    Laden aktiv: nein    - Kabel nicht angeschlossen
-	StatusB    ChargeStatus = "B" // Fzg. angeschlossen:   ja    Laden aktiv: nein    - Kabel angeschlossen
-	StatusC    ChargeStatus = "C" // Fzg. angeschlossen:   ja    Laden aktiv:   ja    - Laden
-	StatusD    ChargeStatus = "D" // Fzg. angeschlossen:   ja    Laden aktiv:   ja    - Laden mit Lüfter
-	StatusE    ChargeStatus = "E" // Fzg. angeschlossen:   ja    Laden aktiv: nein    - Fehler (Kurzschluss)
-	StatusF    ChargeStatus = "F" // Fzg. angeschlossen:   ja    Laden aktiv: nein    - Fehler (Ausfall Wallbox)
+	StatusA    ChargeStatus = "A" // Fzg. angeschlossen: nein    Laden aktiv: nein    Ladestation betriebsbereit, Fahrzeug getrennt
+	StatusB    ChargeStatus = "B" // Fzg. angeschlossen:   ja    Laden aktiv: nein    Fahrzeug verbunden, Netzspannung liegt nicht an
+	StatusC    ChargeStatus = "C" // Fzg. angeschlossen:   ja    Laden aktiv:   ja    Fahrzeug lädt, Netzspannung liegt an
+	StatusD    ChargeStatus = "D" // Fzg. angeschlossen:   ja    Laden aktiv:   ja    Fahrzeug lädt mit externer Belüfungsanforderung (für Blei-Säure-Batterien)
+	StatusE    ChargeStatus = "E" // Fzg. angeschlossen:   ja    Laden aktiv: nein    Fehler Fahrzeug / Kabel (CP-Kurzschluss, 0V)
+	StatusF    ChargeStatus = "F" // Fzg. angeschlossen:   ja    Laden aktiv: nein    Fehler EVSE oder Abstecken simulieren (CP-Wake-up, -12V)
 )
+
+var StatusEasA = map[ChargeStatus]ChargeStatus{StatusE: StatusA}
+
+// ChargeStatusString converts a string to ChargeStatus
+func ChargeStatusString(s string) (ChargeStatus, error) {
+	status := strings.ToUpper(strings.TrimSpace(strings.Trim(s, "\x00")))
+	switch s1 := status[:1]; s1 {
+	case "A", "B":
+		return ChargeStatus(s1), nil
+	case "C", "D":
+		switch status {
+		case "C1", "D1":
+			return StatusB, nil
+		default:
+			return StatusC, nil
+		}
+	case "E", "F":
+		return ChargeStatus(s1), fmt.Errorf("invalid status: %s", status)
+	default:
+		return StatusNone, fmt.Errorf("invalid status: %s", s)
+	}
+}
+
+// ChargeStatusStringWithMapping converts a string to ChargeStatus. In case of error, mapping is applied.
+func ChargeStatusStringWithMapping(s string, m map[ChargeStatus]ChargeStatus) (ChargeStatus, error) {
+	status, err := ChargeStatusString(s)
+	if mappedStatus, ok := m[status]; ok && err != nil {
+		return mappedStatus, nil
+	}
+	return status, err
+}
 
 // String implements Stringer
 func (c ChargeStatus) String() string {
@@ -88,6 +121,11 @@ type ChargeState interface {
 // CurrentLimiter provides settings charging maximum charging current
 type CurrentLimiter interface {
 	MaxCurrent(current int64) error
+}
+
+// CurrentGetter provides getting charging maximum charging current for validation
+type CurrentGetter interface {
+	GetMaxCurrent() (float64, error)
 }
 
 // Charger provides current charging status and enable/disable charging
@@ -187,20 +225,10 @@ type Resurrector interface {
 	WakeUp() error
 }
 
-// Rate is a grid tariff rate
-type Rate struct {
-	Start time.Time `json:"start"`
-	End   time.Time `json:"end"`
-	Price float64   `json:"price"`
-}
-
-// Rates is a slice of (future) tariff rates
-type Rates []Rate
-
 // Tariff is a tariff capable of retrieving tariff rates
 type Tariff interface {
-	Unit() string
 	Rates() (Rates, error)
+	Type() TariffType
 }
 
 // AuthProvider is the ability to provide OAuth authentication through the ui

@@ -39,7 +39,7 @@ type Auth struct {
 }
 
 // NewHTTPProviderFromConfig creates a HTTP provider
-func NewHTTPProviderFromConfig(other map[string]interface{}) (IntProvider, error) {
+func NewHTTPProviderFromConfig(other map[string]interface{}) (Provider, error) {
 	cc := struct {
 		URI, Method       string
 		Headers           map[string]string
@@ -60,8 +60,9 @@ func NewHTTPProviderFromConfig(other map[string]interface{}) (IntProvider, error
 		return nil, err
 	}
 
+	log := util.NewLogger("http")
 	http := NewHTTP(
-		util.NewLogger("http"),
+		log,
 		cc.Method,
 		cc.URI,
 		cc.Insecure,
@@ -80,7 +81,7 @@ func NewHTTPProviderFromConfig(other map[string]interface{}) (IntProvider, error
 
 	if err == nil {
 		var pipe *pipeline.Pipeline
-		pipe, err = pipeline.New(cc.Settings)
+		pipe, err = pipeline.New(log, cc.Settings)
 		http = http.WithPipeline(pipe)
 	}
 
@@ -168,34 +169,7 @@ func (p *HTTP) request(url string, body ...string) ([]byte, error) {
 	return p.val, p.err
 }
 
-// FloatGetter parses float from request
-func (p *HTTP) FloatGetter() func() (float64, error) {
-	g := p.StringGetter()
-
-	return func() (float64, error) {
-		s, err := g()
-		if err != nil {
-			return 0, err
-		}
-
-		f, err := strconv.ParseFloat(s, 64)
-		if err == nil {
-			f *= p.scale
-		}
-
-		return f, err
-	}
-}
-
-// IntGetter parses int64 from request
-func (p *HTTP) IntGetter() func() (int64, error) {
-	g := p.FloatGetter()
-
-	return func() (int64, error) {
-		f, err := g()
-		return int64(math.Round(f)), err
-	}
-}
+var _ StringProvider = (*HTTP)(nil)
 
 // StringGetter sends string request
 func (p *HTTP) StringGetter() func() (string, error) {
@@ -209,6 +183,38 @@ func (p *HTTP) StringGetter() func() (string, error) {
 		return string(b), err
 	}
 }
+
+var _ FloatProvider = (*HTTP)(nil)
+
+// FloatGetter parses float from request
+func (p *HTTP) FloatGetter() func() (float64, error) {
+	g := p.StringGetter()
+
+	return func() (float64, error) {
+		s, err := g()
+		if err != nil {
+			return 0, err
+		}
+
+		f, err := strconv.ParseFloat(s, 64)
+
+		return f * p.scale, err
+	}
+}
+
+var _ IntProvider = (*HTTP)(nil)
+
+// IntGetter parses int64 from request
+func (p *HTTP) IntGetter() func() (int64, error) {
+	g := p.FloatGetter()
+
+	return func() (int64, error) {
+		f, err := g()
+		return int64(math.Round(f)), err
+	}
+}
+
+var _ BoolProvider = (*HTTP)(nil)
 
 // BoolGetter parses bool from request
 func (p *HTTP) BoolGetter() func() (bool, error) {
@@ -236,6 +242,8 @@ func (p *HTTP) set(param string, val interface{}) error {
 	return err
 }
 
+var _ SetIntProvider = (*HTTP)(nil)
+
 // IntSetter sends int request
 func (p *HTTP) IntSetter(param string) func(int64) error {
 	return func(val int64) error {
@@ -243,12 +251,25 @@ func (p *HTTP) IntSetter(param string) func(int64) error {
 	}
 }
 
+var _ SetFloatProvider = (*HTTP)(nil)
+
+// FloatSetter sends int request
+func (p *HTTP) FloatSetter(param string) func(float64) error {
+	return func(val float64) error {
+		return p.set(param, val)
+	}
+}
+
+var _ SetStringProvider = (*HTTP)(nil)
+
 // StringSetter sends string request
 func (p *HTTP) StringSetter(param string) func(string) error {
 	return func(val string) error {
 		return p.set(param, val)
 	}
 }
+
+var _ SetBoolProvider = (*HTTP)(nil)
 
 // BoolSetter sends bool request
 func (p *HTTP) BoolSetter(param string) func(bool) error {

@@ -7,7 +7,7 @@
 [![OSS hosting by cloudsmith](https://img.shields.io/badge/OSS%20hosting%20by-cloudsmith-blue?logo=cloudsmith)](https://cloudsmith.io/~evcc/packages/)
 [![Latest Version](https://img.shields.io/github/release/evcc-io/evcc.svg)](https://github.com/evcc-io/evcc/releases)
 
-evcc is an extensible EV Charge Controller with PV integration implemented in [Go][2]. Featured in [PV magazine](https://www.pv-magazine.de/2021/01/15/selbst-ist-der-groeoenlandhof-wallbox-ladesteuerung-selbst-gebaut/).
+evcc is an extensible EV Charge Controller with PV integration implemented in [Go][1]. Featured in [PV magazine](https://www.pv-magazine.de/2021/01/15/selbst-ist-der-groeoenlandhof-wallbox-ladesteuerung-selbst-gebaut/).
 
 ![Screenshot](docs/screenshot.png)
 
@@ -43,22 +43,49 @@ You'll find everything you need in our [documentation](https://docs.evcc.io/) (G
 
 ## Contribute
 
-To build evcc from source, [Go][1] 1.20 and [Node][2] 18 are required.
+To build evcc from source, [Go][1] 1.21 and [Node][2] 18 are required.
 
 Build and run go backend. The UI becomes available at http://127.0.0.1:7070/
 
 ```sh
+make install-ui
 make ui
 make install
 make
 ./evcc
 ```
 
+### UI development
+
 For frontend development start the Vue toolchain in dev-mode. Open http://127.0.0.1:7071/ to get to the livelreloading development server. It pulls its data from port 7070 (see above).
 
 ```sh
 npm install
 npm run start
+```
+
+### Integration tests
+
+We use Playwright for end-to-end integration tests. They start a local evcc instance with different configuration yamls and prefilled databases. To run them, you have to do a local build first.
+
+```sh
+make ui build
+npm run playwright
+```
+
+#### Simulating device state
+
+Since we dont want to run tests agains real devices or cloud services we've build a simple simulator that lets you emulated meters, vehicles and loadpoints. The simulators web interface runs on http://localhost:7072.
+
+```
+npm run simulator
+```
+
+Run an evcc instance that uses simulator data. This configuration runs with a very high refresh interval to seed up testing.
+
+```
+make ui build
+./evcc --config tests/simulator.evcc.yaml
 ```
 
 ### Code formatting

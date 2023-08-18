@@ -25,7 +25,7 @@ func init() {
 }
 
 // NewMqttFromConfig creates Mqtt provider
-func NewMqttFromConfig(other map[string]interface{}) (IntProvider, error) {
+func NewMqttFromConfig(other map[string]interface{}) (Provider, error) {
 	cc := struct {
 		mqtt.Config       `mapstructure:",squash"`
 		Topic, Payload    string // Payload only applies to setters
@@ -53,7 +53,7 @@ func NewMqttFromConfig(other map[string]interface{}) (IntProvider, error) {
 		m = m.WithRetained()
 	}
 
-	pipe, err := pipeline.New(cc.Settings)
+	pipe, err := pipeline.New(log, cc.Settings)
 	if err == nil {
 		m = m.WithPipeline(pipe)
 	}

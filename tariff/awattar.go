@@ -2,22 +2,23 @@ package tariff
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/evcc-io/evcc/api"
 	"github.com/evcc-io/evcc/tariff/awattar"
 	"github.com/evcc-io/evcc/util"
 	"github.com/evcc-io/evcc/util/request"
-	"golang.org/x/exp/slices"
 )
 
 type Awattar struct {
+	*embed
 	mux     sync.Mutex
 	log     *util.Logger
 	uri     string
-	unit    string
 	data    api.Rates
 	updated time.Time
 }
@@ -30,9 +31,8 @@ func init() {
 
 func NewAwattarFromConfig(other map[string]interface{}) (api.Tariff, error) {
 	cc := struct {
-		Cheap    any // TODO deprecated
-		Currency string
-		Region   string
+		embed  `mapstructure:",squash"`
+		Region string
 	}{
 		Region: "DE",
 	}
@@ -41,19 +41,10 @@ func NewAwattarFromConfig(other map[string]interface{}) (api.Tariff, error) {
 		return nil, err
 	}
 
-	if cc.Currency == "" {
-		cc.Currency = "EUR"
-	}
-
 	t := &Awattar{
-		log:  util.NewLogger("awattar"),
-		unit: cc.Currency,
-		uri:  fmt.Sprintf(awattar.RegionURI, strings.ToLower(cc.Region)),
-	}
-
-	// TODO deprecated
-	if cc.Cheap != nil {
-		t.log.WARN.Println("cheap rate configuration has been replaced by target charging and is deprecated")
+		embed: &cc.embed,
+		log:   util.NewLogger("awattar"),
+		uri:   fmt.Sprintf(awattar.RegionURI, strings.ToLower(cc.Region)),
 	}
 
 	done := make(chan error)
@@ -65,11 +56,15 @@ func NewAwattarFromConfig(other map[string]interface{}) (api.Tariff, error) {
 
 func (t *Awattar) run(done chan error) {
 	var once sync.Once
+	bo := newBackoff()
 	client := request.NewHelper(t.log)
 
 	for ; true; <-time.Tick(time.Hour) {
 		var res awattar.Prices
-		if err := client.GetJSON(t.uri, &res); err != nil {
+
+		if err := backoff.Retry(func() error {
+			return client.GetJSON(t.uri, &res)
+		}, bo); err != nil {
 			once.Do(func() { done <- err })
 
 			t.log.ERROR.Println(err)
@@ -86,7 +81,7 @@ func (t *Awattar) run(done chan error) {
 			ar := api.Rate{
 				Start: r.StartTimestamp.Local(),
 				End:   r.EndTimestamp.Local(),
-				Price: r.Marketprice / 1e3,
+				Price: t.totalPrice(r.Marketprice / 1e3),
 			}
 			t.data = append(t.data, ar)
 		}
@@ -95,14 +90,14 @@ func (t *Awattar) run(done chan error) {
 	}
 }
 
-// Unit implements the api.Tariff interface
-func (t *Awattar) Unit() string {
-	return t.unit
-}
-
 // Rates implements the api.Tariff interface
 func (t *Awattar) Rates() (api.Rates, error) {
 	t.mux.Lock()
 	defer t.mux.Unlock()
 	return slices.Clone(t.data), outdatedError(t.updated, time.Hour)
+}
+
+// Type implements the api.Tariff interface
+func (t *Awattar) Type() api.TariffType {
+	return api.TariffTypePriceDynamic
 }
